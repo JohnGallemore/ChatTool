@@ -1,16 +1,105 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"log"
+	"net"
 	"os"
+	"time"
 )
 
 func main() {
-	fmt.Println("Chat started.")
 
+	//Verify that arguments were given, then verify that those arguments were valid. If so, launch in the specified mode.
 	if len(os.Args) > 1 {
-		for i := 1; i < len(os.Args); i++ {
-			fmt.Println(os.Args[i])
+		switch os.Args[1] {
+		case "-h":
+			fmt.Println("Application launched in Client Mode")
+			clientMode()
+
+		case "-s":
+			fmt.Println("Application launched in Server Mode")
+			serverMode()
+
+		case "-a":
+			fmt.Println("Application launched in Auto Mode")
+
+		case "-help":
+			fmt.Println("Application launched in Help Mode")
+
+		default:
+			fmt.Println("Your arguments were invalid, relaunch using -help argument.")
 		}
 	}
+}
+
+func clientMode() {
+	conn, err := net.Dial("tcp", "localhost:8080")
+	if err != nil {
+		log.Println(err)
+	}
+
+	defer conn.Close()
+
+	reader := bufio.NewReader(os.Stdin)
+
+	msg, err := reader.ReadString('\n')
+	if err != nil {
+		log.Println(err)
+	}
+
+	conn.Write([]byte(msg))
+
+}
+
+func serverMode() {
+	ln, err := net.Listen("tcp", "localhost:8080")
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	defer ln.Close()
+
+	for {
+		//Accept incoming connection
+		conn, err := ln.Accept()
+		if err != nil {
+			log.Println()
+		}
+
+		go handleConnection(conn)
+	}
+}
+
+func handleConnection(conn net.Conn) {
+	defer conn.Close()
+
+	conn.SetReadDeadline(time.Now().Add(time.Second))
+	conn.SetWriteDeadline(time.Now().Add(time.Second))
+
+	//Create a byte buffer of size 1024
+	buffer := make([]byte, 1024)
+
+	for {
+		//Read from the connection into the byte buffer
+		n, err := conn.Read(buffer)
+		if err != nil {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				//The read operation simply timed out, move on.
+				continue
+			} else {
+				log.Println(err)
+				break
+			}
+		}
+
+		//Print what has been read into the byte buffer.
+		//The statement buffer[:n] will read everything in the buffer up to but excluding the nth element
+		fmt.Println(buffer[:n])
+		buffer = nil
+		fmt.Println(buffer)
+	}
+
 }
