@@ -43,14 +43,14 @@ func clientMode() {
 		log.Println(err)
 	}
 	defer conn.Close()
-	fmt.Println("Client: Connection established.")
+	conn.Write([]byte("Client: Connection established."))
 
 	readChan := make(chan []byte)
 	writeChan := make(chan []byte)
 	quitChan := make(chan bool)
 	errChan := make(chan error)
 
-	// Infinite loop until a break command is received
+	// Infinitely loop until a break command is received
 CONNECTION_LOOP:
 	for {
 		// A go function that reads data from the connection into a buffer
@@ -94,7 +94,7 @@ CONNECTION_LOOP:
 		// to do something with.
 		select {
 		case readData := <-readChan:
-			fmt.Println("Message Received: ", string(readData))
+			fmt.Println(string(readData))
 
 		case writeData := <-writeChan:
 			conn.Write(writeData)
@@ -107,7 +107,6 @@ CONNECTION_LOOP:
 			break CONNECTION_LOOP
 		}
 	}
-
 }
 
 func serverMode() {
@@ -119,40 +118,75 @@ func serverMode() {
 	}
 	defer ln.Close()
 
-	go func() {
+	readChan := make(chan []byte)
+	writeChan := make(chan []byte)
+	quitChan := make(chan bool)
+	errChan := make(chan error)
+
+COMM_LOOP:
+	for {
 		//Accept incoming connection
 		conn, err := ln.Accept()
 		if err != nil {
-			log.Println("Error accepting connection: ", err)
+			fmt.Println("Error accepting connection: ", err)
 			return
 		}
-
+		defer conn.Close()
 		conn.Write([]byte("Server: Connection established."))
-	}()
-}
 
-func handleConnection(conn net.Conn) {
-	defer conn.Close()
+		// A go function that reads data from the connection into a buffer
+		// Once the data from the connection has been read into the buffer,
+		// send the data from the buffer into the read channel.
+		go func() {
+			buffer := make([]byte, 1024)
 
-	//Create a byte buffer of size 1024
-	buffer := make([]byte, 1024)
-
-	for {
-		//Read from the connection into the byte buffer
-		n, err := conn.Read(buffer)
-		if err != nil {
-			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				//The read operation simply timed out, move on
-				continue
-			} else {
-				log.Println(err)
-				break
+			n, err := conn.Read(buffer)
+			if err != nil {
+				errChan <- err
+				return
 			}
-		} else if n > 0 {
-			//Check if the int returned by reading the connection is more than 0. If it is, there is something to write.
-			//Print what has been read into the byte buffer.
-			//The statement buffer[:n] will read everything in the buffer up to but excluding the nth element
-			fmt.Println(string(buffer[:n]))
+
+			readChan <- buffer[:n]
+		}()
+
+		// A go function to read input from the user into a buffer.
+		// Once data has been read from input, it is sent to the write channel,
+		// where it can then be written to the connection in the select statement.
+		go func() {
+			buffer := make([]byte, 1024)
+
+			reader := bufio.NewReader(os.Stdin)
+
+			n, err := reader.Read(buffer)
+			if err != nil {
+				errChan <- err
+				return
+			}
+
+			if strings.EqualFold(string(buffer[:n]), "quit") {
+				quitChan <- strings.EqualFold(string(buffer[:n]), "quit")
+				return
+			}
+
+			writeChan <- buffer[:n]
+		}()
+
+		// A select statement that waits until there is something in one of the channels
+		// to do something with.
+		select {
+		case readData := <-readChan:
+			fmt.Println(string(readData))
+
+		case writeData := <-writeChan:
+			conn.Write(writeData)
+
+		case errData := <-errChan:
+			fmt.Println("Error occurred: ", errData)
+			panic(errData)
+
+		case quitData := <-quitChan:
+			fmt.Println("Ending Connection: ", quitData)
+			break COMM_LOOP
 		}
 	}
 }
