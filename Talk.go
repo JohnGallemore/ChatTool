@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -43,6 +44,7 @@ func clientMode() {
 		log.Println(err)
 	}
 	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(5 * time.Second))
 	conn.Write([]byte("Client: Connection established."))
 
 	readChan := make(chan []byte)
@@ -100,11 +102,18 @@ CONNECTION_LOOP:
 			conn.Write(writeData)
 
 		case errData := <-errChan:
-			fmt.Println("Error occurred: ", errData)
+			if netErr, ok := errData.(net.Error); ok && netErr.Timeout() {
+				log.Println("Timeout Error: ", errData)
+			} else {
+				fmt.Println("Error occurred: ", errData)
+				panic(errData)
+			}
 
 		case quitData := <-quitChan:
 			fmt.Println("Ending Connection: ", quitData)
 			break CONNECTION_LOOP
+
+		default:
 		}
 	}
 }
@@ -132,6 +141,7 @@ COMM_LOOP:
 			return
 		}
 		defer conn.Close()
+		conn.SetDeadline(time.Now().Add(5 * time.Second))
 		conn.Write([]byte("Server: Connection established."))
 
 		// A go function that reads data from the connection into a buffer
@@ -181,12 +191,18 @@ COMM_LOOP:
 			conn.Write(writeData)
 
 		case errData := <-errChan:
-			fmt.Println("Error occurred: ", errData)
-			panic(errData)
+			if netErr, ok := errData.(net.Error); ok && netErr.Timeout() {
+				log.Println("Timeout Error: ", errData)
+			} else {
+				fmt.Println("Error occurred: ", errData)
+				panic(errData)
+			}
 
 		case quitData := <-quitChan:
 			fmt.Println("Ending Connection: ", quitData)
 			break COMM_LOOP
+
+		default:
 		}
 	}
 }
