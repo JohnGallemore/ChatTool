@@ -163,5 +163,11 @@ func handleWrite(wch chan []byte, ech chan error, bch chan bool) {
 		return
 	}
 
+	// Check if the user has typed "STATUS", if so, provide status and return, else, continue.
+	if msg == "STATUS" {
+		fmt.Println("TODO: Get status of connection.")
+		return
+	}
+
 	wch <- buffer[:n]
 }
