@@ -43,96 +43,8 @@ func clientMode() {
 		log.Println(err)
 	}
 
+	// Call handleComm to handle communcations over this connection.
 	handleComm(conn, "Client")
-
-	/*
-			//Cutoff for what starts to be the communications handling.
-			readChan := make(chan []byte)
-			writeChan := make(chan []byte)
-			quitChan := make(chan bool)
-			errChan := make(chan error)
-
-			// A mutex var so that we can lock while the read function is working
-			var muRead sync.Mutex
-
-			// A mutex var so that we can lock while the write function is working
-			var muWrite sync.Mutex
-
-			// Infinitely loop until a break command is received
-		COMM_LOOP:
-			for {
-				// A go function that reads data from the connection into a buffer
-				// Once the data from the connection has been read into the buffer,
-				// send the data from the buffer into the read channel.
-				go func() {
-					muRead.Lock()
-					defer muRead.Unlock()
-					fmt.Println("We have entered reading mode")
-					buffer := make([]byte, 1024)
-
-					n, err := conn.Read(buffer)
-					if err != nil {
-						errChan <- err
-						return
-					}
-
-					readChan <- buffer[:n]
-				}()
-
-				// A go function to read input from the user into a buffer.
-				// Once data has been read from input, it is sent to the write channel,
-				// where it can then be written to the connection in the select statement.
-				go func() {
-					muWrite.Lock()
-					defer muWrite.Unlock()
-					fmt.Println("We have entered writing mode")
-					buffer := make([]byte, 1024)
-
-					reader := bufio.NewReader(os.Stdin)
-
-					n, err := reader.Read(buffer)
-					if err != nil {
-						errChan <- err
-						return
-					}
-
-					if strings.EqualFold(string(buffer[:n]), "quit") {
-						quitChan <- strings.EqualFold(string(buffer[:n]), "quit")
-						return
-					}
-
-					writeChan <- buffer[:n]
-				}()
-
-				// A select statement that waits until there is something in one of the channels
-				// to do something with.
-				select {
-				case readData := <-readChan:
-					fmt.Println(string(readData))
-
-				case writeData := <-writeChan:
-					conn.Write(writeData)
-
-				case errData := <-errChan:
-					/*
-						if netErr, ok := errData.(net.Error); ok && netErr.Timeout() {
-							log.Println("Timeout Error: ", errData)
-							continue COMM_LOOP
-						} else {
-							fmt.Println("Error occurred: ", errData)
-							log.Fatalln(errData)
-						}*/ /*
-
-			fmt.Println("Error occurred: ", errData)
-			log.Fatalln(errData)
-
-		case quitData := <-quitChan:
-			fmt.Println("Ending Connection: ", quitData)
-			break COMM_LOOP
-
-		default:
-		}
-	}*/
 }
 
 func serverMode() {
@@ -151,6 +63,7 @@ func serverMode() {
 		return
 	}
 
+	// Call handleComm to handle communications over this connection.
 	handleComm(conn, "Server")
 }
 
@@ -165,60 +78,8 @@ func handleComm(conn net.Conn, modeName string) {
 	quitChan := make(chan bool)
 	errChan := make(chan error)
 
-	// A mutex var so that we can lock while the read function is working
-	//var muRead sync.Mutex
-
-	// A mutex var so that we can lock while the write function is working
-	//var muWrite sync.Mutex
-
-	// A go function that reads data from the connection into a buffer
-	// Once the data from the connection has been read into the buffer,
-	// send the data from the buffer into the read channel.
-
-	/*
-		go func() {
-			muRead.Lock()
-			defer muRead.Unlock()
-			fmt.Println("We have entered reading mode")
-			buffer := make([]byte, 1024)
-
-			n, err := conn.Read(buffer)
-			if err != nil {
-				errChan <- err
-				return
-			}
-
-			readChan <- buffer[:n]
-		}()*/
-
-	/*
-		// A go function to read input from the user into a buffer.
-		// Once data has been read from input, it is sent to the write channel,
-		// where it can then be written to the connection in the select statement.
-		go func() {
-			muWrite.Lock()
-			defer muWrite.Unlock()
-			fmt.Println("We have entered writing mode")
-			buffer := make([]byte, 1024)
-
-			reader := bufio.NewReader(os.Stdin)
-
-			n, err := reader.Read(buffer)
-			if err != nil {
-				errChan <- err
-				return
-			}
-
-			if strings.EqualFold(string(buffer[:n]), "quit") {
-				quitChan <- strings.EqualFold(string(buffer[:n]), "quit")
-				return
-			}
-
-			writeChan <- buffer[:n]
-		}()*/
-
 	go handleRead(conn, readChan, errChan)
-	go handleWrite(conn, writeChan, errChan, quitChan)
+	go handleWrite(writeChan, errChan, quitChan)
 
 	// Infinite loop over the select statement to do polling
 COMM_LOOP:
@@ -231,7 +92,7 @@ COMM_LOOP:
 
 		case writeData := <-writeChan:
 			conn.Write(writeData)
-			go handleWrite(conn, writeChan, errChan, quitChan)
+			go handleWrite(writeChan, errChan, quitChan)
 
 		case errData := <-errChan:
 			fmt.Println("Error occurred: ", errData)
@@ -251,9 +112,6 @@ COMM_LOOP:
 // Takes a net.Conn connection, a []byte channel to send the buffer into, and an error channel to send any errors
 // into for later error handling.
 func handleRead(conn net.Conn, rch chan []byte, ech chan error) {
-	//muRead.Lock()
-	//defer muRead.Unlock()
-	fmt.Println("We have entered reading mode")
 	buffer := make([]byte, 1024)
 
 	n, err := conn.Read(buffer)
@@ -268,12 +126,11 @@ func handleRead(conn net.Conn, rch chan []byte, ech chan error) {
 // A go function to read input from the user into a buffer.
 // Once data has been read from input, it is sent to the write channel,
 // where it can then be written to the connection in the select statement.
-// Takes a net.Conn connection, a []byte channel to send the buffer into, an error channel to send any errors
+// Since this handles user input on the user side, it does not need to know anything about the connection,
+// this function only needs to know which channels to send information to.
+// Takes a []byte channel to send the buffer into, an error channel to send any errors
 // into for later error handling, and a bool channel to send input that is flagged to end the connection into.
-func handleWrite(conn net.Conn, wch chan []byte, ech chan error, bch chan bool) {
-	//muWrite.Lock()
-	//defer muWrite.Unlock()
-	fmt.Println("We have entered writing mode")
+func handleWrite(wch chan []byte, ech chan error, bch chan bool) {
 	buffer := make([]byte, 1024)
 
 	reader := bufio.NewReader(os.Stdin)
@@ -284,8 +141,10 @@ func handleWrite(conn net.Conn, wch chan []byte, ech chan error, bch chan bool) 
 		return
 	}
 
-	if strings.EqualFold(string(buffer[:n]), "quit") {
-		bch <- strings.EqualFold(string(buffer[:n]), "quit")
+	msg := string(buffer[:(n - 2)])
+
+	if strings.EqualFold(msg, "quit") {
+		bch <- strings.EqualFold(msg, "quit")
 		return
 	}
 
