@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -40,11 +42,14 @@ func clientMode() {
 	// Currently only using localhost:8080 for testing
 	conn, err := net.Dial("tcp", "localhost:8080")
 	if err != nil {
-		log.Println(err)
+		log.Println("Error creating connection: ", err)
+		return
 	}
 
+	name := []byte("Client: ")
+
 	// Call handleComm to handle communcations over this connection.
-	handleComm(conn, "Client")
+	handleComm(conn, name)
 }
 
 func serverMode() {
@@ -63,14 +68,17 @@ func serverMode() {
 		return
 	}
 
+	name := []byte("Server: ")
+
 	// Call handleComm to handle communications over this connection.
-	handleComm(conn, "Server")
+	handleComm(conn, name)
 }
 
 // A function for handling all communication over a connection, both reading and writing.
-func handleComm(conn net.Conn, modeName string) {
+// Takes a net.Conn connection and a []byte slice representing the name of the user that calls handleComm
+func handleComm(conn net.Conn, name []byte) {
 	defer conn.Close()
-	ack := (modeName + ": Connection Established")
+	ack := (string(name) + "Connection Established\n")
 	conn.Write([]byte(ack))
 
 	readChan := make(chan []byte)
@@ -87,14 +95,19 @@ COMM_LOOP:
 		// A select statement that waits until there is something in one of the channels to do something with.
 		select {
 		case readData := <-readChan:
-			fmt.Println(string(readData))
+			fmt.Printf("%s\n", string(readData))
 			go handleRead(conn, readChan, errChan)
 
 		case writeData := <-writeChan:
-			conn.Write(writeData)
+			msg := append(name, writeData...)
+			conn.Write(msg)
 			go handleWrite(writeChan, errChan, quitChan)
 
 		case errData := <-errChan:
+			if errors.Is(errData, io.EOF) {
+				fmt.Println("Termination: Other participant has disconnected.")
+				break COMM_LOOP
+			}
 			fmt.Println("Error occurred: ", errData)
 			log.Fatalln(errData)
 
@@ -134,6 +147,7 @@ func handleWrite(wch chan []byte, ech chan error, bch chan bool) {
 	buffer := make([]byte, 1024)
 
 	reader := bufio.NewReader(os.Stdin)
+	fmt.Println()
 
 	n, err := reader.Read(buffer)
 	if err != nil {
