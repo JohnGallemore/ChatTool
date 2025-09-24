@@ -156,9 +156,10 @@ func handleWrite(wch chan []byte, ech chan error, bch chan bool) {
 	}
 
 	msg := string(buffer[:(n - 2)])
+	quitting := strings.EqualFold(msg, "quit")
 
-	if strings.EqualFold(msg, "quit") {
-		bch <- strings.EqualFold(msg, "quit")
+	if quitting {
+		bch <- quitting
 		return
 	}
 
