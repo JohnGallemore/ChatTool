@@ -13,7 +13,11 @@ import (
 
 func main() {
 
-	//Verify that arguments were given, then verify that those arguments were valid. If so, launch in the specified mode.
+	// Verify that arguments were given, then verify that those arguments were valid. If so, launch in the specified mode.
+
+	// TODO: This is just here temporarily for testing purposes, remove later.
+	fmt.Println(os.Args)
+
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "-h":
@@ -29,10 +33,13 @@ func main() {
 
 		case "-help":
 			fmt.Println("Application launched in Help Mode")
+			helpMode()
 
 		default:
 			fmt.Println("Your arguments were invalid, relaunch using -help argument.")
 		}
+	} else {
+		fmt.Println("You provided no arguments, relaunch using -help argument.")
 	}
 }
 
@@ -54,7 +61,7 @@ func clientMode() {
 
 func serverMode() {
 
-	// Establish a tcp server that listens on port 8080, defer closure until the end of the program.
+	// Establish a tcp server that listens on a port provided in os.Args, defer closure until the end of the program.
 	ln, err := net.Listen("tcp", "localhost:8080")
 	if err != nil {
 		log.Fatalln(err)
@@ -170,4 +177,12 @@ func handleWrite(wch chan []byte, ech chan error, bch chan bool) {
 	}
 
 	wch <- buffer[:n]
+}
+
+func helpMode() {
+	fmt.Println("Author: John Gallemore")
+	fmt.Println("CLIENT MODE: Run using the following arguments: -h [hostname | IPaddress] [-p portnumber]")
+	fmt.Println("SERVER MODE: Run using the following arguments: -s [-p portnumber]")
+	fmt.Println("AUTO MODE:   Run using the following arguments: -a [hostname | IPaddress] [-p portnumber]")
+	fmt.Println("HELP MODE:   Run using the following arguments: -help")
 }
