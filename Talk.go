@@ -18,7 +18,21 @@ func main() {
 	// TODO: This is just here temporarily for testing purposes, remove later.
 	fmt.Println(os.Args)
 
-	if len(os.Args) > 1 {
+	var portnumber []string
+	//var host string
+
+	if len(os.Args) > 2 {
+
+		// Check to see if the second argument provided by the user matches the format of the portnumber,
+		// if it does not, then check if it matches the format of the hostname/IPaddress argument.
+		// If neither are true, tell the user they have entered the arguments incorrectly and launch in help mode.
+
+		// TODO: Currently not working, don't know why. I think I need to look into how the os.Args works, maybe it's not all strings?
+		if strings.Contains(os.Args[2], "-p") {
+			portnumber = strings.Split(strings.Trim(os.Args[2], "[]"), " ")
+		}
+		fmt.Printf("%q\n", portnumber)
+
 		switch os.Args[1] {
 		case "-h":
 			fmt.Println("Application launched in Client Mode")
@@ -30,19 +44,23 @@ func main() {
 
 		case "-a":
 			fmt.Println("Application launched in Auto Mode")
+			autoMode()
 
 		case "-help":
 			fmt.Println("Application launched in Help Mode")
 			helpMode()
 
 		default:
-			fmt.Println("Your arguments were invalid, relaunch using -help argument.")
+			fmt.Println("Your arguments were invalid, launching in Help Mode.")
+			helpMode()
 		}
 	} else {
-		fmt.Println("You provided no arguments, relaunch using -help argument.")
+		fmt.Println("You provided no or insufficient arguments, launching in Help Mode.")
+		helpMode()
 	}
 }
 
+// A function that attempts to dial a server of a specified hostname/IPaddress on a specified port
 func clientMode() {
 
 	// Establish a connection by trying to connect to a provided IP address.
@@ -59,6 +77,7 @@ func clientMode() {
 	handleComm(conn, name)
 }
 
+// A function that starts up a server that listens for any connections on the specified port
 func serverMode() {
 
 	// Establish a tcp server that listens on a port provided in os.Args, defer closure until the end of the program.
@@ -143,7 +162,7 @@ func handleRead(conn net.Conn, rch chan []byte, ech chan error) {
 	rch <- buffer[:n]
 }
 
-// A go function to read input from the user into a buffer.
+// A function to read input from the user into a buffer.
 // Once data has been read from input, it is sent to the write channel,
 // where it can then be written to the connection in the select statement.
 // Since this handles user input on the user side, it does not need to know anything about the connection,
@@ -177,6 +196,12 @@ func handleWrite(wch chan []byte, ech chan error, bch chan bool) {
 	}
 
 	wch <- buffer[:n]
+}
+
+// A function that first attempts to connect to a specified server using a hostname/IPaddress and port number provided in the args,
+// then, if that fails, spins up its own server on the provided port number.
+func autoMode() {
+	fmt.Println("This feature is not yet implemented.")
 }
 
 func helpMode() {
